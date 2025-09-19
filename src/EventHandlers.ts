@@ -760,3 +760,4 @@ ERC1967Proxy.Upgraded.handler(async ({ event, context }) => {
 
   context.ERC1967Proxy_Upgraded.set(entity);
 });
+// trigger indexing
