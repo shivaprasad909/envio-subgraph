@@ -1,7 +1,6 @@
 import { experimental_createEffect, S, type EffectContext } from "envio";
 
 // Convert bytes32 to CID (same as subgraph implementation)
-//
 export function bytes32ToCID(dataHashHex: string): string {
   // Remove 0x prefix if present
   const cleanHex = dataHashHex.startsWith('0x') ? dataHashHex.slice(2) : dataHashHex;
