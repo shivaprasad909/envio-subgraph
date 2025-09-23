@@ -216,12 +216,12 @@ async function fetchDataWithInfiniteRetry<T>(
                     attempt: totalAttempts
                 });
                 const responseGoogle = await fetch("https://www.google.com");
-                context.log.info(`Fetching ${fullUrl}`)
-                const response = await fetch(fullUrl, {
+                context.log.info(`Fetching ${fullUrl}`, {
                     cid,
                     endpoint: endpoint.url,
                     attempt: totalAttempts
-                });
+                })
+                const response = await fetch(fullUrl);
 
                 if (response.ok) {
                     const data: any = await response.json();
