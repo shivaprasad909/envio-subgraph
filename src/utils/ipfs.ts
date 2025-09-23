@@ -1,247 +1,425 @@
 import { experimental_createEffect, S, type EffectContext } from "envio";
 import {
-  ipfsMetadataSchema,
-  relationshipSchema,
-  structureSchema,
-  addressSchema,
-  propertySchema,
-  ipfsFactSheetSchema,
-  lotDataSchema,
-  salesHistorySchema,
-  taxSchema,
-  utilitySchema,
-  floodStormInformationSchema,
-  personSchema,
-  companySchema,
-  layoutSchema,
-  fileSchema,
-  deedSchema,
-  type IpfsMetadata,
-  type RelationshipData,
-  type StructureData,
-  type AddressData,
-  type PropertyData,
-  type IpfsFactSheetData,
-  type LotData,
-  type SalesHistoryData,
-  type TaxData,
-  type UtilityData,
-  type FloodStormInformationData,
-  type PersonData,
-  type CompanyData,
-  type LayoutData,
-  type FileData,
-  type DeedData
+    ipfsMetadataSchema,
+    relationshipSchema,
+    structureSchema,
+    addressSchema,
+    propertySchema,
+    ipfsFactSheetSchema,
+    lotDataSchema,
+    salesHistorySchema,
+    taxSchema,
+    utilitySchema,
+    floodStormInformationSchema,
+    personSchema,
+    companySchema,
+    layoutSchema,
+    fileSchema,
+    deedSchema,
+    type IpfsMetadata,
+    type RelationshipData,
+    type StructureData,
+    type AddressData,
+    type PropertyData,
+    type IpfsFactSheetData,
+    type LotData,
+    type SalesHistoryData,
+    type TaxData,
+    type UtilityData,
+    type FloodStormInformationData,
+    type PersonData,
+    type CompanyData,
+    type LayoutData,
+    type FileData,
+    type DeedData
 } from "./schemas";
 
 // Convert bytes32 to CID (same as subgraph implementation)
 //
 export function bytes32ToCID(dataHashHex: string): string {
-  // Remove 0x prefix if present
-  const cleanHex = dataHashHex.startsWith('0x') ? dataHashHex.slice(2) : dataHashHex;
+    // Remove 0x prefix if present
+    const cleanHex = dataHashHex.startsWith('0x') ? dataHashHex.slice(2) : dataHashHex;
 
-  // Convert hex string to bytes
-  const hashBytes = new Uint8Array(
-      cleanHex.match(/.{2}/g)!.map(byte => parseInt(byte, 16))
-  );
+    // Convert hex string to bytes
+    const hashBytes = new Uint8Array(
+        cleanHex.match(/.{2}/g)!.map(byte => parseInt(byte, 16))
+    );
 
-  // Create multihash (sha256 + 32 bytes + hash)
-  const multihash = new Uint8Array(34);
-  multihash[0] = 0x12; // sha256
-  multihash[1] = 0x20; // 32 bytes
+    // Create multihash (sha256 + 32 bytes + hash)
+    const multihash = new Uint8Array(34);
+    multihash[0] = 0x12; // sha256
+    multihash[1] = 0x20; // 32 bytes
 
-  for (let i = 0; i < 32; i++) {
-    multihash[i + 2] = hashBytes[i];
-  }
-
-  // Create CID data (v1 + raw codec + multihash)
-  const cidData = new Uint8Array(36);
-  cidData[0] = 0x01; // CID v1
-  cidData[1] = 0x55; // raw codec
-
-  for (let i = 0; i < 34; i++) {
-    cidData[i + 2] = multihash[i];
-  }
-
-  // Base32 encode
-  const BASE32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
-  let output = "";
-  let bits = 0;
-  let value = 0;
-
-  for (let i = 0; i < cidData.length; i++) {
-    value = (value << 8) | cidData[i];
-    bits += 8;
-
-    while (bits >= 5) {
-      output += BASE32_ALPHABET[(value >>> (bits - 5)) & 0x1f];
-      bits -= 5;
+    for (let i = 0; i < 32; i++) {
+        multihash[i + 2] = hashBytes[i];
     }
-  }
 
-  if (bits > 0) {
-    output += BASE32_ALPHABET[(value << (5 - bits)) & 0x1f];
-  }
+    // Create CID data (v1 + raw codec + multihash)
+    const cidData = new Uint8Array(36);
+    cidData[0] = 0x01; // CID v1
+    cidData[1] = 0x55; // raw codec
 
-  return "b" + output;
+    for (let i = 0; i < 34; i++) {
+        cidData[i + 2] = multihash[i];
+    }
+
+    // Base32 encode
+    const BASE32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
+    let output = "";
+    let bits = 0;
+    let value = 0;
+
+    for (let i = 0; i < cidData.length; i++) {
+        value = (value << 8) | cidData[i];
+        bits += 8;
+
+        while (bits >= 5) {
+            output += BASE32_ALPHABET[(value >>> (bits - 5)) & 0x1f];
+            bits -= 5;
+        }
+    }
+
+    if (bits > 0) {
+        output += BASE32_ALPHABET[(value << (5 - bits)) & 0x1f];
+    }
+
+    return "b" + output;
+}
+
+// Build gateway configuration with environment variables as priority
+function buildEndpoints() {
+    const endpoints = [];
+
+    // Check for custom gateway from environment variables (highest priority)
+    const envGateway = process.env.ENVIO_IPFS_GATEWAY;
+    const envToken = process.env.ENVIO_GATEWAY_TOKEN;
+
+    if (envGateway) {
+        endpoints.push({
+            url: envGateway,
+            token: envToken || null
+        });
+    }
+
+    // Add fallback gateways
+    const fallbackEndpoints = [
+        { url: "https://sapphire-academic-leech-250.mypinata.cloud/ipfs", token: "CcV1DorYnAo9eZr_P4DXg8TY4SB-QuUw_b6C70JFs2M8aY0fJudBnle2mUyCYyTu" },
+        { url: "https://indexing-node-envio.mypinata.cloud/ipfs", token: "iYp6WBHfIL-yzshn3WnFyCJRmIH3iBqwcD9Jou-pgTmtr20GXaDWXxqTg9zOP6dk" },
+        { url: "https://dry-fuchsia-ox.myfilebase.com/ipfs/", token: null },
+        { url: "https://indexing-node-envio-2.mypinata.cloud/ipfs", token: "OdQztc-h-6PjCKKJnUvYpjjw_m8n4KsRBMRWOGtyipd-KVRG7rTiC2D5bKKBDA2B" },
+        { url: "https://indexing-node-envio-3.mypinata.cloud/ipfs", token: "cSEbVBstzkkTTco4oO-iBbuhX_sahOth00XH2rpE7E30IuwnE6A7gdxSa_ZSfWs6" },
+        { url: "https://indexing-node-envio-4.mypinata.cloud/ipfs", token: "BZA3Pmr1XNG7HqS49-owAGq0UcHxEmSBBK58-VTN4XeY3cP0DeUFXdhuo6z8sFfk" },
+        { url: "https://indexing-node-envio-5.mypinata.cloud/ipfs", token: "oe6OopKUwS21PFia0i9o9fJIjPp5lFcosrcW6r1NTCh5BNEylK6blp0JQyFf5Qf3" },
+        { url: "https://indexing-node-envio-6.mypinata.cloud/ipfs", token: "WXB6rg3NUOUf4RJqZ92mphaJzui37iTm5KnYdINfEViuecA7Pi5NZnbmWv1JLO0o" },
+        { url: "https://indexing-node-envio-7.mypinata.cloud/ipfs", token: "mENdB9KWRja3LKxHuPM9ALFnpDeIq3hKO2kkmDNyAVL7lwSpEnIjoEe6CKQHoE_c" },
+        { url: "https://indexing-node-envio-8.mypinata.cloud/ipfs", token: "cI2sPS-C2G5O1jhDSGGIS0wrxKbLg7EvOSbgXuKbaR0JL7U1PMtp-bqg6i2enIaw" },
+        { url: "https://indexing-node-envio-9.mypinata.cloud/ipfs", token: "90TLB7uLlOGodY8BWEmJa47nWKoru1Bd54yZQcbPrp6GJOG3-SAayrGHi6wfiXry" },
+        { url: "https://indexing-node-envio-10.mypinata.cloud/ipfs", token: "XZ5G02AF45h_a8Fvv4S5HR9LthJ5y27S2xAMivgfW002aVr2bhK5XqflTc_QWk02" },        { url: "https://moral-aqua-catfish.myfilebase.com/ipfs", token: null },
+        { url: "https://bronze-blank-cod-736.mypinata.cloud/ipfs", token: "0EicEGVVMxNrYgog3s1-Aud_3v32eSvF9nYypTkQ4Qy-G4M8N-zdBvL1DNYjlupe" },
+        { url: "https://indexing2.myfilebase.com/ipfs", token: null },
+        { url: "https://ipfs.io/ipfs", token: null },
+        { url: "https://gateway.ipfs.io/ipfs", token: null },
+        { url: "https://dweb.link/ipfs", token: null },
+        { url: "https://w3s.link/ipfs", token: null },
+        { url: "https://gateway.pinata.cloud/ipfs", token: null },
+    ];
+
+    // Add fallback endpoints, avoiding duplicates
+    for (const fallback of fallbackEndpoints) {
+        const isDuplicate = endpoints.some(existing => existing.url === fallback.url);
+        if (!isDuplicate) {
+            endpoints.push(fallback);
+        }
+    }
+
+    return endpoints;
 }
 
 // Gateway configuration with optional authentication tokens
-const endpoints = [
-  // Multiple public gateways for reliability
-  { url: "https://sapphire-academic-leech-250.mypinata.cloud/ipfs", token: "CcV1DorYnAo9eZr_P4DXg8TY4SB-QuUw_b6C70JFs2M8aY0fJudBnle2mUyCYyTu" },
-  { url: "https://indexing-node-envio.mypinata.cloud/ipfs", token: "iYp6WBHfIL-yzshn3WnFyCJRmIH3iBqwcD9Jou-pgTmtr20GXaDWXxqTg9zOP6dk" },
-  { url: "https://indexing-node-envio-2.mypinata.cloud/ipfs", token: "OdQztc-h-6PjCKKJnUvYpjjw_m8n4KsRBMRWOGtyipd-KVRG7rTiC2D5bKKBDA2B" },
-  { url: "https://indexing-node-envio-3.mypinata.cloud/ipfs", token: "cSEbVBstzkkTTco4oO-iBbuhX_sahOth00XH2rpE7E30IuwnE6A7gdxSa_ZSfWs6" },
-  { url: "https://indexing-node-envio-4.mypinata.cloud/ipfs", token: "BZA3Pmr1XNG7HqS49-owAGq0UcHxEmSBBK58-VTN4XeY3cP0DeUFXdhuo6z8sFfk" },
-  { url: "https://indexing-node-envio-5.mypinata.cloud/ipfs", token: "oe6OopKUwS21PFia0i9o9fJIjPp5lFcosrcW6r1NTCh5BNEylK6blp0JQyFf5Qf3" },
-  { url: "https://indexing-node-envio-6.mypinata.cloud/ipfs", token: "WXB6rg3NUOUf4RJqZ92mphaJzui37iTm5KnYdINfEViuecA7Pi5NZnbmWv1JLO0o" },
-  { url: "https://indexing-node-envio-7.mypinata.cloud/ipfs", token: "mENdB9KWRja3LKxHuPM9ALFnpDeIq3hKO2kkmDNyAVL7lwSpEnIjoEe6CKQHoE_c" },
-  { url: "https://indexing-node-envio-8.mypinata.cloud/ipfs", token: "cI2sPS-C2G5O1jhDSGGIS0wrxKbLg7EvOSbgXuKbaR0JL7U1PMtp-bqg6i2enIaw" },
-  { url: "https://indexing-node-envio-9.mypinata.cloud/ipfs", token: "90TLB7uLlOGodY8BWEmJa47nWKoru1Bd54yZQcbPrp6GJOG3-SAayrGHi6wfiXry" },
-  { url: "https://indexing-node-envio-10.mypinata.cloud/ipfs", token: "XZ5G02AF45h_a8Fvv4S5HR9LthJ5y27S2xAMivgfW002aVr2bhK5XqflTc_QWk02" },
-  { url: "https://moral-aqua-catfish.myfilebase.com/ipfs", token: null },
-  { url: "https://bronze-blank-cod-736.mypinata.cloud/ipfs", token: "0EicEGVVMxNrYgog3s1-Aud_3v32eSvF9nYypTkQ4Qy-G4M8N-zdBvL1DNYjlupe" },
-  { url: "https://indexing2.myfilebase.com/ipfs", token: null },
-  { url: "https://ipfs.io/ipfs", token: null },
-  { url: "https://gateway.ipfs.io/ipfs", token: null },
-  { url: "https://dweb.link/ipfs", token: null },
-  { url: "https://w3s.link/ipfs", token: null },
-  { url: "https://gateway.pinata.cloud/ipfs", token: null },
-];
+const endpoints = buildEndpoints();
 
 // Helper function to build URL with optional token
 function buildGatewayUrl(baseUrl: string, cid: string, token: string | null): string {
-  const url = `${baseUrl}/${cid}`;
-  if (token) {
-    return `${url}?pinataGatewayToken=${token}`;
-  }
-  return url;
+    const url = `${baseUrl}/${cid}`;
+    if (token) {
+        return `${url}?pinataGatewayToken=${token}`;
+    }
+    return url;
 }
 
-async function fetchFromEndpoint(
-    context: EffectContext,
-    endpoint: { url: string; token: string | null },
-    cid: string
-): Promise<IpfsMetadata | null> {
-  try {
-    const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-    const response = await fetch(fullUrl);
-
-    if (response.ok) {
-      const metadata: any = await response.json();
-
-      // Extract label from metadata
-      if (metadata && typeof metadata === 'object' && metadata.label && typeof metadata.label === 'string') {
-        return {
-          label: metadata.label,
-          relationships: metadata.relationships
-        };
-      } else {
-        context.log.warn(`No label field found in IPFS metadata`, { cid, endpoint: endpoint.url });
-        return null;
-      }
-    } else {
-      if (response.status === 429) {
-        context.log.warn(`Rate limited by IPFS gateway`, { cid, endpoint: endpoint.url });
-      } else {
-        context.log.warn(`IPFS gateway returned error`, {
-          cid,
-          endpoint: endpoint.url,
-          status: response.status,
-          statusText: response.statusText
-        });
-      }
-      return null;
+// Helper function to check if error should trigger retry (connection errors, timeouts, rate limits)
+function shouldRetryIndefinitely(response?: Response, error?: Error): boolean {
+    // Retry indefinitely on connection/timeout errors
+    if (error?.name === 'ConnectTimeoutError' ||
+        error?.name === 'TypeError' ||
+        error?.name === 'FetchError' ||
+        error?.message?.includes('timeout') ||
+        error?.message?.includes('ECONNREFUSED') ||
+        error?.message?.includes('ENOTFOUND') ||
+        error?.message?.includes('ETIMEDOUT') ||
+        error?.message?.includes('fetch failed')) {
+        return true;
     }
-  } catch (e) {
-    const error = e as Error;
-    context.log.warn(`IPFS fetch failed`, {
-      cid,
-      endpoint: endpoint.url,
-      error: error.message,
-      errorName: error.name,
-      errorStack: error.stack,
-      errorCause: error.cause
-    });
-    return null;
-  }
+
+    // Also check the underlying error cause for connection issues
+    const cause = (error as any)?.cause;
+    if (cause?.name === 'ConnectTimeoutError' ||
+        cause?.code === 'UND_ERR_CONNECT_TIMEOUT' ||
+        cause?.message?.includes('Connect Timeout Error') ||
+        cause?.message?.includes('timeout')) {
+        return true;
+    }
+
+    // Retry indefinitely on specific HTTP status codes
+    if (response) {
+        return response.status === 429 || response.status === 502 || response.status === 504;
+    }
+
+    return false;
+}
+
+// Helper function for other non-retriable errors (give up after few attempts)
+function shouldRetryLimited(response?: Response, error?: Error): boolean {
+    if (response) {
+        return response.status >= 500 && response.status !== 502 && response.status !== 504;
+    }
+    return false;
+}
+
+// Helper function to wait with exponential backoff
+async function waitWithBackoff(attempt: number): Promise<void> {
+    const baseDelay = 1000; // 1 second
+    const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff
+    await new Promise(resolve => setTimeout(resolve, delay));
+}
+
+// New infinite retry function for IPFS data fetching that never gives up on connection errors
+async function fetchDataWithInfiniteRetry<T>(
+    context: EffectContext,
+    cid: string,
+    dataType: string,
+    validator: (data: any) => boolean,
+    transformer: (data: any) => T
+): Promise<T> {
+    let totalAttempts = 0;
+
+    while (true) {
+        for (let i = 0; i < endpoints.length; i++) {
+            const endpoint = endpoints[i];
+            totalAttempts++;
+
+            try {
+                const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
+                const response = await fetch(fullUrl);
+
+                if (response.ok) {
+                    const data: any = await response.json();
+                    if (validator(data)) {
+                        if (totalAttempts > 1) {
+                            context.log.info(`${dataType} fetch succeeded after ${totalAttempts} attempts`, {
+                                cid,
+                                endpoint: endpoint.url,
+                                totalAttempts
+                            });
+                        }
+                        return transformer(data);
+                    } else {
+                        context.log.warn(`${dataType} validation failed`, {
+                            cid,
+                            endpoint: endpoint.url,
+                            attempt: totalAttempts
+                        });
+                    }
+                } else {
+                    // Check if we should retry indefinitely
+                    if (shouldRetryIndefinitely(response)) {
+                        context.log.warn(`${dataType} fetch failed with retriable error, will retry indefinitely`, {
+                            cid,
+                            endpoint: endpoint.url,
+                            status: response.status,
+                            statusText: response.statusText,
+                            attempt: totalAttempts
+                        });
+                    } else {
+                        context.log.warn(`${dataType} fetch failed with non-retriable error`, {
+                            cid,
+                            endpoint: endpoint.url,
+                            status: response.status,
+                            statusText: response.statusText,
+                            attempt: totalAttempts
+                        });
+                    }
+                }
+            } catch (e) {
+                const error = e as Error;
+                const cause = (error as any)?.cause;
+
+                // Extract detailed error information
+                const errorDetails = {
+                    cid,
+                    endpoint: endpoint.url,
+                    error: error.message,
+                    errorName: error.name,
+                    attempt: totalAttempts,
+                    fullUrl: buildGatewayUrl(endpoint.url, cid, endpoint.token),
+                    errorStack: error.stack,
+                    errorCause: cause,
+                    // Additional diagnostic info
+                    causeCode: cause?.code,
+                    causeErrno: cause?.errno,
+                    causeSystemCall: cause?.syscall,
+                    causeAddress: cause?.address,
+                    causePort: cause?.port,
+                    userAgent: 'Envio-Indexer/1.0',
+                    timestamp: new Date().toISOString(),
+                    // Network diagnostic hints
+                    possibleCause: error.message?.includes('ENOTFOUND') ? 'DNS_RESOLUTION_FAILED' :
+                                 error.message?.includes('ECONNREFUSED') ? 'CONNECTION_REFUSED' :
+                                 error.message?.includes('ETIMEDOUT') ? 'CONNECTION_TIMEOUT' :
+                                 error.message?.includes('ECONNRESET') ? 'CONNECTION_RESET' :
+                                 error.message?.includes('timeout') ? 'TIMEOUT' :
+                                 error.name === 'AbortError' ? 'REQUEST_ABORTED' :
+                                 'UNKNOWN_NETWORK_ERROR'
+                };
+
+                if (shouldRetryIndefinitely(undefined, error)) {
+                    context.log.warn(`${dataType} fetch failed with retriable connection error, will retry indefinitely`, errorDetails);
+                } else {
+                    context.log.error(`${dataType} fetch failed with non-retriable error`, {
+                        ...errorDetails,
+                        errorStringified: JSON.stringify(error, Object.getOwnPropertyNames(error))
+                    });
+                }
+            }
+
+            // No delay between gateways - try them as fast as possible
+        }
+
+        // After trying all endpoints, wait a short time before starting another full cycle
+        context.log.info(`Completed full gateway cycle (${totalAttempts} attempts), waiting before retry`, {
+            cid,
+            dataType,
+            totalAttempts
+        });
+        await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 second delay between full cycles
+    }
+}
+
+// Helper function specifically for IPFS metadata with infinite retry
+async function fetchIpfsMetadataWithInfiniteRetry(
+    context: EffectContext,
+    cid: string
+): Promise<IpfsMetadata> {
+    return fetchDataWithInfiniteRetry(
+        context,
+        cid,
+        "IPFS metadata",
+        (data) => data && typeof data === 'object' && data.label && typeof data.label === 'string',
+        (data) => ({
+            label: data.label,
+            relationships: data.relationships
+        })
+    );
+}
+
+// DEPRECATED: This function has been replaced by fetchDataWithInfiniteRetry
+// Keeping only for getRelationshipData which needs limited retries
+async function fetchDataWithLimitedRetry<T>(
+    context: EffectContext,
+    cid: string,
+    dataType: string,
+    validator: (data: any) => boolean,
+    transformer: (data: any) => T,
+    maxAttempts: number = 3
+): Promise<T> {
+    for (let i = 0; i < endpoints.length; i++) {
+        const endpoint = endpoints[i];
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            try {
+                const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
+                const response = await fetch(fullUrl);
+
+                if (response.ok) {
+                    const data: any = await response.json();
+                    if (validator(data)) {
+                        if (attempt > 0) {
+                            context.log.info(`${dataType} fetch succeeded on attempt ${attempt + 1}`, {
+                                cid,
+                                endpoint: endpoint.url
+                            });
+                        }
+                        return transformer(data);
+                    }
+                } else {
+                    context.log.warn(`${dataType} fetch failed - HTTP error`, {
+                        cid,
+                        endpoint: endpoint.url,
+                        status: response.status,
+                        statusText: response.statusText,
+                        attempt: attempt + 1,
+                        maxAttempts
+                    });
+                }
+            } catch (e) {
+                const error = e as Error;
+                context.log.warn(`Failed to fetch ${dataType}`, {
+                    cid,
+                    endpoint: endpoint.url,
+                    error: error.message,
+                    errorName: error.name,
+                    attempt: attempt + 1,
+                    maxAttempts
+                });
+            }
+
+            // Wait before retry (except on last attempt)
+            if (attempt < maxAttempts - 1) {
+                await waitWithBackoff(attempt);
+            }
+        }
+
+        // No delay between endpoints - try them as fast as possible
+    }
+
+    context.log.error(`Unable to fetch ${dataType} from all gateways`, { cid });
+    throw new Error(`Failed to fetch ${dataType} for CID: ${cid}`);
 }
 
 // Fetch relationship data (from/to structure)
 export const getRelationshipData = experimental_createEffect(
     {
-      name: "getRelationshipData",
-      input: S.string,
-      output: relationshipSchema,
-      cache: true,
+        name: "getRelationshipData",
+        input: S.string,
+        output: relationshipSchema,
+        cache: true,
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        try {
-          const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-          const response = await fetch(fullUrl);
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data && data.to && data.to["/"]) {
-              return data;
-            }
-          } else {
-            context.log.warn(`Relationship data fetch failed - HTTP error`, {
-              cid,
-              endpoint: endpoint.url,
-              status: response.status,
-              statusText: response.statusText
-            });
-          }
-        } catch (e) {
-          const error = e as Error;
-          context.log.warn(`Failed to fetch relationship data`, {
+        return fetchDataWithInfiniteRetry(
+            context,
             cid,
-            endpoint: endpoint.url,
-            error: error.message,
-            errorName: error.name,
-            errorStack: error.stack,
-            errorCause: error.cause
-          });
-        }
-
-        // Delay between endpoints
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      context.log.error("Unable to fetch relationship data from all gateways", { cid });
-      throw new Error(`Failed to fetch relationship data for CID: ${cid}`);
+            "relationship data",
+            (data: any) => data && data.to && data.to["/"],
+            (data: any) => data
+        );
     }
 );
 
 // Fetch structure data (roof_date)
 export const getStructureData = experimental_createEffect(
     {
-      name: "getStructureData",
-      input: S.string,
-      output: structureSchema,
-      cache: true,
+        name: "getStructureData",
+        input: S.string,
+        output: structureSchema,
+        cache: true,
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        try {
-          const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-          const response = await fetch(fullUrl);
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data && typeof data === 'object') {
-              return {
-                // Original field
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "structure data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
                 roof_date: data.roof_date || undefined,
                 architectural_style_type: data.architectural_style_type || undefined,
                 attachment_type: data.attachment_type || undefined,
@@ -288,60 +466,26 @@ export const getStructureData = experimental_createEffect(
                 window_glazing_type: data.window_glazing_type || undefined,
                 window_operation_type: data.window_operation_type || undefined,
                 window_screen_material: data.window_screen_material || undefined,
-              };
-            }
-          } else {
-            context.log.warn(`Structure data fetch failed - HTTP error`, {
-              cid,
-              endpoint: endpoint.url,
-              status: response.status,
-              statusText: response.statusText
-            });
-          }
-        } catch (e) {
-          const error = e as Error;
-          context.log.warn(`Failed to fetch structure data`, {
-            cid,
-            endpoint: endpoint.url,
-            error: error.message,
-            errorName: error.name,
-            errorStack: error.stack,
-            errorCause: error.cause
-          });
-        }
-
-        // Delay between endpoints
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      context.log.error("Unable to fetch structure data from all gateways", { cid });
-      throw new Error(`Failed to fetch structure data for CID: ${cid}`);
+            })
+        );
     }
 );
 
 // Fetch address data
 export const getAddressData = experimental_createEffect(
     {
-      name: "getAddressData",
-      input: S.string,
-      output: addressSchema,
-      cache: true,
+        name: "getAddressData",
+        input: S.string,
+        output: addressSchema,
+        cache: true,
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        try {
-          const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-          const response = await fetch(fullUrl);
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data && typeof data === 'object') {
-
-              return {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "address data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
                 request_identifier: data.request_identifier || undefined,
                 block: data.block || undefined,
                 city_name: data.city_name || undefined,
@@ -364,60 +508,26 @@ export const getAddressData = experimental_createEffect(
                 street_suffix_type: data.street_suffix_type || undefined,
                 township: data.township || undefined,
                 unit_identifier: data.unit_identifier || undefined,
-              };
-            }
-          } else {
-            context.log.warn(`Address data fetch failed - HTTP error`, {
-              cid,
-              endpoint: endpoint.url,
-              status: response.status,
-              statusText: response.statusText
-            });
-          }
-        } catch (e) {
-          const error = e as Error;
-          context.log.warn(`Failed to fetch address data`, {
-            cid,
-            endpoint: endpoint.url,
-            error: error.message,
-            errorName: error.name,
-            errorStack: error.stack,
-            errorCause: error.cause
-          });
-        }
-
-        // Delay between endpoints
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      context.log.error("Unable to fetch address data from all gateways", { cid });
-      throw new Error(`Failed to fetch address data for CID: ${cid}`);
+            })
+        );
     }
 );
 
 // Fetch property data (property_type, built years)
 export const getPropertyData = experimental_createEffect(
     {
-      name: "getPropertyData",
-      input: S.string,
-      output: propertySchema,
-      cache: true,
+        name: "getPropertyData",
+        input: S.string,
+        output: propertySchema,
+        cache: true,
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        try {
-          const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-          const response = await fetch(fullUrl);
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data && typeof data === 'object') {
-
-              return {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "property data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
                 property_type: data.property_type || undefined,
                 property_structure_built_year: data.property_structure_built_year ? String(data.property_structure_built_year) : undefined,
                 property_effective_built_year: data.property_effective_built_year ? String(data.property_effective_built_year) : undefined,
@@ -432,161 +542,61 @@ export const getPropertyData = experimental_createEffect(
                 subdivision: data.subdivision || undefined,
                 total_area: data.total_area || undefined,
                 zoning: data.zoning || undefined,
-              };
-            }
-          } else {
-            context.log.warn(`Property data fetch failed - HTTP error`, {
-              cid,
-              endpoint: endpoint.url,
-              status: response.status,
-              statusText: response.statusText
-            });
-          }
-        } catch (e) {
-          const error = e as Error;
-          context.log.warn(`Failed to fetch property data`, {
-            cid,
-            endpoint: endpoint.url,
-            error: error.message,
-            errorName: error.name,
-            errorStack: error.stack,
-            errorCause: error.cause
-          });
-        }
-
-        // Delay between endpoints
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      context.log.error("Unable to fetch property data from all gateways", { cid });
-      throw new Error(`Failed to fetch property data for CID: ${cid}`);
+            })
+        );
     }
 );
 
-// Rate limiting configuration
-const RATE_LIMIT_CONFIG = {
-  delayBetweenEndpoints: 500, // 0.5 seconds between trying different gateways
-  delayOn429: 500, // 10 seconds when rate limited
-  delayOnError: 500, // 10 seconds on other errors
-  maxRetries: 1, // Max retries per endpoint (reduced to avoid too many failures)
-};
 
 // Fetch fact sheet data (ipfs_url and full_generation_command)
 export const getIpfsFactSheetData = experimental_createEffect(
     {
-      name: "getIpfsFactSheetData",
-      input: S.string,
-      output: ipfsFactSheetSchema,
-      cache: true,
+        name: "getIpfsFactSheetData",
+        input: S.string,
+        output: ipfsFactSheetSchema,
+        cache: true,
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        try {
-          const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-          const response = await fetch(fullUrl);
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data && typeof data === 'object') {
-
-              return {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "fact sheet data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
                 ipfs_url: data.ipfs_url || undefined,
                 full_generation_command: data.full_generation_command || undefined,
-              };
-            }
-          } else {
-            context.log.warn(`Fact sheet data fetch failed - HTTP error`, {
-              cid,
-              endpoint: endpoint.url,
-              status: response.status,
-              statusText: response.statusText
-            });
-          }
-        } catch (e) {
-          const error = e as Error;
-          context.log.warn(`Failed to fetch fact sheet data`, {
-            cid,
-            endpoint: endpoint.url,
-            error: error.message,
-            errorName: error.name,
-            errorStack: error.stack,
-            errorCause: error.cause
-          });
-        }
-
-        // Delay between endpoints
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      context.log.error("Unable to fetch fact sheet data from all gateways", { cid });
-      throw new Error(`Failed to fetch fact sheet data for CID: ${cid}`);
+            })
+        );
     }
 );
 
 export const getIpfsMetadata = experimental_createEffect(
     {
-      name: "getIpfsMetadata",
-      input: S.string,
-      output: ipfsMetadataSchema,
-      cache: true, // Enable caching for better performance
+        name: "getIpfsMetadata",
+        input: S.string,
+        output: ipfsMetadataSchema,
+        cache: true, // Enable caching for better performance
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        // Try each endpoint with retries
-        for (let retry = 0; retry < RATE_LIMIT_CONFIG.maxRetries; retry++) {
-          const metadata = await fetchFromEndpoint(context, endpoint, cid);
-          if (metadata) {
-            return metadata;
-          }
-
-          // Delay before retry (except on last retry of last endpoint)
-          if (retry < RATE_LIMIT_CONFIG.maxRetries - 1) {
-            const delay = RATE_LIMIT_CONFIG.delayOnError;
-            await new Promise(resolve => setTimeout(resolve, delay));
-          }
-        }
-
-        // Delay between endpoints (except for last endpoint)
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      // All endpoints failed - throw error to prevent corrupted data
-      context.log.error("Unable to fetch IPFS metadata from all gateways", { cid });
-      throw new Error(`Failed to fetch IPFS content for CID: ${cid}`);
+        return fetchIpfsMetadataWithInfiniteRetry(context, cid);
     }
 );
 
 
 export const getLotData = experimental_createEffect(
     {
-      name: "getLotData",
-      input: S.string,
-      output: lotDataSchema,
-      cache: true,
+        name: "getLotData",
+        input: S.string,
+        output: lotDataSchema,
+        cache: true,
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        try {
-          const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-          const response = await fetch(fullUrl);
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data && typeof data === 'object') {
-
-              return {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "lot data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
                 driveway_condition: data.driveway_condition || undefined,
                 driveway_material: data.driveway_material || undefined,
                 fence_height: data.fence_height || undefined,
@@ -601,112 +611,48 @@ export const getLotData = experimental_createEffect(
                 lot_width_feet: data.lot_width_feet || undefined,
                 request_identifier: data.request_identifier || undefined,
                 view: data.view || undefined,
-              };
-            }
-          } else {
-            context.log.warn(`Lot data fetch failed - HTTP error`, {
-              cid,
-              endpoint: endpoint.url,
-              status: response.status,
-              statusText: response.statusText
-            });
-          }
-        } catch (e) {
-          const error = e as Error;
-          context.log.warn(`Failed to fetch lot data`, {
-            cid,
-            endpoint: endpoint.url,
-            error: error.message,
-            errorCause: error.cause
-          });
-        }
-
-        // Delay between endpoints
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      context.log.error("Unable to fetch lot data from all gateways", { cid });
-      throw new Error(`Failed to fetch lot data for CID: ${cid}`);
+            })
+        );
     }
 );
 
 export const getSalesHistoryData = experimental_createEffect(
     {
-      name: "getSalesHistoryData",
-      input: S.string,
-      output: salesHistorySchema,
-      cache: true,
+        name: "getSalesHistoryData",
+        input: S.string,
+        output: salesHistorySchema,
+        cache: true,
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        try {
-          const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-          const response = await fetch(fullUrl);
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data && typeof data === 'object') {
-
-              return {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "sales history data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
                 ownership_transfer_date: data.ownership_transfer_date || undefined,
                 purchase_price_amount: data.purchase_price_amount || undefined,
                 request_identifier: data.request_identifier || undefined,
                 sale_type: data.sale_type || undefined,
-              };
-            }
-          } else {
-            context.log.warn(`Sales history data fetch failed - HTTP error`, {
-              cid,
-              endpoint: endpoint.url,
-              status: response.status,
-              statusText: response.statusText
-            });
-          }
-        } catch (e) {
-          const error = e as Error;
-          context.log.warn(`Failed to fetch sales history data`, {
-            cid,
-            endpoint: endpoint.url,
-            error: error.message,
-            errorCause: error.cause
-          });
-        }
-
-        // Delay between endpoints
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      context.log.error("Unable to fetch sales history data from all gateways", { cid });
-      throw new Error(`Failed to fetch sales history data for CID: ${cid}`);
+            })
+        );
     }
 );
 
 export const getTaxData = experimental_createEffect(
     {
-      name: "getTaxData",
-      input: S.string,
-      output: taxSchema,
-      cache: true,
+        name: "getTaxData",
+        input: S.string,
+        output: taxSchema,
+        cache: true,
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        try {
-          const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-          const response = await fetch(fullUrl);
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data && typeof data === 'object') {
-
-              return {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "tax data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
                 first_year_building_on_tax_roll: data.first_year_building_on_tax_roll || undefined,
                 first_year_on_tax_roll: data.first_year_on_tax_roll || undefined,
                 monthly_tax_amount: data.monthly_tax_amount || undefined,
@@ -720,57 +666,25 @@ export const getTaxData = experimental_createEffect(
                 request_identifier: data.request_identifier || undefined,
                 tax_year: data.tax_year || undefined,
                 yearly_tax_amount: data.yearly_tax_amount || undefined,
-              };
-            }
-          } else {
-            context.log.warn(`Tax data fetch failed - HTTP error`, {
-              cid,
-              endpoint: endpoint.url,
-              status: response.status,
-              statusText: response.statusText
-            });
-          }
-        } catch (e) {
-          const error = e as Error;
-          context.log.warn(`Failed to fetch tax data`, {
-            cid,
-            endpoint: endpoint.url,
-            error: error.message,
-            errorCause: error.cause
-          });
-        }
-
-        // Delay between endpoints
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      context.log.error("Unable to fetch tax data from all gateways", { cid });
-      throw new Error(`Failed to fetch tax data for CID: ${cid}`);
+            })
+        );
     }
 );
 
 export const getUtilityData = experimental_createEffect(
     {
-      name: "getUtilityData",
-      input: S.string,
-      output: utilitySchema,
-      cache: true,
+        name: "getUtilityData",
+        input: S.string,
+        output: utilitySchema,
+        cache: true,
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        try {
-          const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-          const response = await fetch(fullUrl);
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data && typeof data === 'object') {
-
-              return {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "utility data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
                 cooling_system_type: data.cooling_system_type || undefined,
                 electrical_panel_capacity: data.electrical_panel_capacity || undefined,
                 electrical_wiring_type: data.electrical_wiring_type || undefined,
@@ -791,57 +705,25 @@ export const getUtilityData = experimental_createEffect(
                 solar_panel_type: data.solar_panel_type || undefined,
                 solar_panel_type_other_description: data.solar_panel_type_other_description || undefined,
                 water_source_type: data.water_source_type || undefined,
-              };
-            }
-          } else {
-            context.log.warn(`Utility data fetch failed - HTTP error`, {
-              cid,
-              endpoint: endpoint.url,
-              status: response.status,
-              statusText: response.statusText
-            });
-          }
-        } catch (e) {
-          const error = e as Error;
-          context.log.warn(`Failed to fetch utility data`, {
-            cid,
-            endpoint: endpoint.url,
-            error: error.message,
-            errorCause: error.cause
-          });
-        }
-
-        // Delay between endpoints
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      context.log.error("Unable to fetch utility data from all gateways", { cid });
-      throw new Error(`Failed to fetch utility data for CID: ${cid}`);
+            })
+        );
     }
 );
 
 export const getFloodStormData = experimental_createEffect(
     {
-      name: "getFloodStormData",
-      input: S.string,
-      output: floodStormInformationSchema,
-      cache: true,
+        name: "getFloodStormData",
+        input: S.string,
+        output: floodStormInformationSchema,
+        cache: true,
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        try {
-          const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-          const response = await fetch(fullUrl);
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data && typeof data === 'object') {
-
-              return {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "flood storm data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
                 community_id: data.community_id || undefined,
                 effective_date: data.effective_date || undefined,
                 evacuation_zone: data.evacuation_zone || undefined,
@@ -851,57 +733,25 @@ export const getFloodStormData = experimental_createEffect(
                 map_version: data.map_version || undefined,
                 panel_number: data.panel_number || undefined,
                 request_identifier: data.request_identifier || undefined,
-              };
-            }
-          } else {
-            context.log.warn(`Flood storm data fetch failed - HTTP error`, {
-              cid,
-              endpoint: endpoint.url,
-              status: response.status,
-              statusText: response.statusText
-            });
-          }
-        } catch (e) {
-          const error = e as Error;
-          context.log.warn(`Failed to fetch flood storm data`, {
-            cid,
-            endpoint: endpoint.url,
-            error: error.message,
-            errorCause: error.cause
-          });
-        }
-
-        // Delay between endpoints
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      context.log.error("Unable to fetch flood storm data from all gateways", { cid });
-      throw new Error(`Failed to fetch flood storm data for CID: ${cid}`);
+            })
+        );
     }
 );
 
 export const getPersonData = experimental_createEffect(
     {
-      name: "getPersonData",
-      input: S.string,
-      output: personSchema,
-      cache: true,
+        name: "getPersonData",
+        input: S.string,
+        output: personSchema,
+        cache: true,
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        try {
-          const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-          const response = await fetch(fullUrl);
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data && typeof data === 'object') {
-
-              return {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "person data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
                 birth_date: data.birth_date || undefined,
                 first_name: data.first_name,
                 last_name: data.last_name,
@@ -911,110 +761,46 @@ export const getPersonData = experimental_createEffect(
                 suffix_name: data.suffix_name || undefined,
                 us_citizenship_status: data.us_citizenship_status || undefined,
                 veteran_status: data.veteran_status || undefined,
-              };
-            }
-          } else {
-            context.log.warn(`Person data fetch failed - HTTP error`, {
-              cid,
-              endpoint: endpoint.url,
-              status: response.status,
-              statusText: response.statusText
-            });
-          }
-        } catch (e) {
-          const error = e as Error;
-          context.log.warn(`Failed to fetch person data`, {
-            cid,
-            endpoint: endpoint.url,
-            error: error.message,
-            errorCause: error.cause
-          });
-        }
-
-        // Delay between endpoints
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      context.log.error("Unable to fetch person data from all gateways", { cid });
-      throw new Error(`Failed to fetch person data for CID: ${cid}`);
+            })
+        );
     }
 );
 
 export const getCompanyData = experimental_createEffect(
     {
-      name: "getCompanyData",
-      input: S.string,
-      output: companySchema,
-      cache: true,
+        name: "getCompanyData",
+        input: S.string,
+        output: companySchema,
+        cache: true,
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        try {
-          const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-          const response = await fetch(fullUrl);
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data && typeof data === 'object') {
-
-              return {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "company data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
                 name: data.name || undefined,
                 request_identifier: data.request_identifier || undefined,
-              };
-            }
-          } else {
-            context.log.warn(`Company data fetch failed - HTTP error`, {
-              cid,
-              endpoint: endpoint.url,
-              status: response.status,
-              statusText: response.statusText
-            });
-          }
-        } catch (e) {
-          const error = e as Error;
-          context.log.warn(`Failed to fetch company data`, {
-            cid,
-            endpoint: endpoint.url,
-            error: error.message,
-            errorCause: error.cause
-          });
-        }
-
-        // Delay between endpoints
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      context.log.error("Unable to fetch company data from all gateways", { cid });
-      throw new Error(`Failed to fetch company data for CID: ${cid}`);
+            })
+        );
     }
 );
 
 export const getLayoutData = experimental_createEffect(
     {
-      name: "getLayoutData",
-      input: S.string,
-      output: layoutSchema,
-      cache: true,
+        name: "getLayoutData",
+        input: S.string,
+        output: layoutSchema,
+        cache: true,
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        try {
-          const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-          const response = await fetch(fullUrl);
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data && typeof data === 'object') {
-
-              return {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "layout data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
                 cabinet_style: data.cabinet_style || undefined,
                 clutter_level: data.clutter_level || undefined,
                 condition_issues: data.condition_issues || undefined,
@@ -1048,142 +834,52 @@ export const getLayoutData = experimental_createEffect(
                 window_design_type: data.window_design_type || undefined,
                 window_material_type: data.window_material_type || undefined,
                 window_treatment_type: data.window_treatment_type || undefined,
-              };
-            }
-          } else {
-            context.log.warn(`Layout data fetch failed - HTTP error`, {
-              cid,
-              endpoint: endpoint.url,
-              status: response.status,
-              statusText: response.statusText
-            });
-          }
-        } catch (e) {
-          const error = e as Error;
-          context.log.warn(`Failed to fetch layout data`, {
-            cid,
-            endpoint: endpoint.url,
-            error: error.message,
-            errorCause: error.cause
-          });
-        }
-
-        // Delay between endpoints
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      context.log.error("Unable to fetch layout data from all gateways", { cid });
-      throw new Error(`Failed to fetch layout data for CID: ${cid}`);
+            })
+        );
     }
 );
 
 export const getFileData = experimental_createEffect(
     {
-      name: "getFileData",
-      input: S.string,
-      output: fileSchema,
-      cache: true,
+        name: "getFileData",
+        input: S.string,
+        output: fileSchema,
+        cache: true,
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        try {
-          const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-          const response = await fetch(fullUrl);
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data && typeof data === 'object') {
-
-              return {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "file data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
                 document_type: data.document_type || undefined,
                 file_format: data.file_format || undefined,
                 ipfs_url: data.ipfs_url || undefined,
                 name: data.name || undefined,
                 original_url: data.original_url || undefined,
                 request_identifier: data.request_identifier || undefined,
-              };
-            }
-          } else {
-            context.log.warn(`File data fetch failed - HTTP error`, {
-              cid,
-              endpoint: endpoint.url,
-              status: response.status,
-              statusText: response.statusText
-            });
-          }
-        } catch (e) {
-          const error = e as Error;
-          context.log.warn(`Failed to fetch file data`, {
-            cid,
-            endpoint: endpoint.url,
-            error: error.message,
-            errorCause: error.cause
-          });
-        }
-
-        // Delay between endpoints
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      context.log.error("Unable to fetch file data from all gateways", { cid });
-      throw new Error(`Failed to fetch file data for CID: ${cid}`);
+            })
+        );
     }
 );
 
 export const getDeedData = experimental_createEffect(
     {
-      name: "getDeedData",
-      input: S.string,
-      output: deedSchema,
-      cache: true,
+        name: "getDeedData",
+        input: S.string,
+        output: deedSchema,
+        cache: true,
     },
     async ({ input: cid, context }) => {
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        try {
-          const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-
-          const response = await fetch(fullUrl);
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data && typeof data === 'object') {
-
-              return {
-                deed_type: data.deed_type,
-              };
-            }
-          } else {
-            context.log.warn(`Deed data fetch failed - HTTP error`, {
-              cid,
-              endpoint: endpoint.url,
-              status: response.status,
-              statusText: response.statusText
-            });
-          }
-        } catch (e) {
-          const error = e as Error;
-          context.log.warn(`Failed to fetch deed data`, {
+        return fetchDataWithInfiniteRetry(
+            context,
             cid,
-            endpoint: endpoint.url,
-            error: error.message,
-            errorCause: error.cause
-          });
-        }
-
-        // Delay between endpoints
-        if (i < endpoints.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_CONFIG.delayBetweenEndpoints));
-        }
-      }
-
-      context.log.error("Unable to fetch deed data from all gateways", { cid });
-      throw new Error(`Failed to fetch deed data for CID: ${cid}`);
+            "deed data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                deed_type: data.deed_type,
+            })
+        );
     }
 );

@@ -7,8 +7,8 @@
     "watch": "tsc --watch",
     "mocha": "ts-mocha test/**/*.ts",
     "codegen": "envio codegen",
-    "dev": "envio dev",
-    "start": "envio start",
+    "dev": "MAX_BATCH_SIZE=200 envio dev",
+    "start": "MAX_BATCH_SIZE=200 envio start",
     "test": "pnpm mocha"
   },
   "devDependencies": {

@@ -1,18 +1,3 @@
-type ERC1967Proxy_DataGroupConsensusUpdated {
-  id: ID!
-  dataGroupHash: String!
-  oldValue: BigInt!
-  newValue: BigInt!
-}
-
-type ERC1967Proxy_DataGroupHeartBeat {
-  id: ID!
-  propertyHash: String!
-  dataGroupHash: String!
-  dataHash: String!
-  submitter: String!
-}
-
 type ERC1967Proxy_DataSubmitted {
   id: ID!
   propertyHash: String!
@@ -21,41 +6,12 @@ type ERC1967Proxy_DataSubmitted {
   dataHash: String!
 }
 
-type ERC1967Proxy_Initialized {
+type ERC1967Proxy_DataGroupHeartBeat {
   id: ID!
-  version: BigInt!
-}
-
-type ERC1967Proxy_MinimumConsensusUpdated {
-  id: ID!
-  oldValue: BigInt!
-  newValue: BigInt!
-}
-
-type ERC1967Proxy_RoleAdminChanged {
-  id: ID!
-  role: String!
-  previousAdminRole: String!
-  newAdminRole: String!
-}
-
-type ERC1967Proxy_RoleGranted {
-  id: ID!
-  role: String!
-  account: String!
-  sender: String!
-}
-
-type ERC1967Proxy_RoleRevoked {
-  id: ID!
-  role: String!
-  account: String!
-  sender: String!
-}
-
-type ERC1967Proxy_Upgraded {
-  id: ID!
-  implementation: String!
+  propertyHash: String!
+  dataGroupHash: String!
+  dataHash: String!
+  submitter: String!
 }
 
 type Structure {
@@ -167,12 +123,12 @@ type Lot {
   fence_length: String
   fencing_type: String
   landscaping_features: String
-  lot_area_sqft: Int
+  lot_area_sqft: BigInt
   lot_condition_issues: String
-  lot_length_feet: Int
+  lot_length_feet: BigInt
   lot_size_acre: Float
   lot_type: String
-  lot_width_feet: Int
+  lot_width_feet: BigInt
   request_identifier: String
   view: String
 }
@@ -324,6 +280,7 @@ type DataSubmittedWithLabel {
   cid: String!
   label: String!
   id_source: String!
+  datetime: BigInt
   structure: Structure
   address: Address
   property: Property
