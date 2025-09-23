@@ -210,12 +210,6 @@ async function fetchDataWithInfiniteRetry<T>(
 
             try {
                 const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-                context.log.info("Fetching https://www.google.com", {
-                    cid,
-                    endpoint: "https://www.google.com",
-                    attempt: totalAttempts
-                });
-                const responseGoogle = await fetch("https://www.google.com");
                 context.log.info(`Fetching ${fullUrl}`, {
                     cid,
                     endpoint: endpoint.url,
