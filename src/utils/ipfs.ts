@@ -210,6 +210,7 @@ async function fetchDataWithInfiniteRetry<T>(
 
             try {
                 const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
+                context.log.info(`Fetching ${fullUrl}`)
                 const response = await fetch(fullUrl);
 
                 if (response.ok) {
