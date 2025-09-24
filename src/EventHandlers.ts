@@ -10,10 +10,7 @@ import {
 } from "generated";
 
 import { bytes32ToCID, getIpfsMetadata } from "./utils/ipfs";
-import { getAllowedSubmitters, processCountyData } from "./utils/eventHelpers";
-
-// Get allowed submitters from environment variables - this will crash if none found
-const allowedSubmitters = getAllowedSubmitters();
+import { processCountyData } from "./utils/eventHelpers";
 
 ERC1967Proxy.DataGroupHeartBeat.handler(async ({ event, context }) => {
   // Process HeartBeat events from all submitters
@@ -106,10 +103,7 @@ ERC1967Proxy.DataGroupHeartBeat.handler(async ({ event, context }) => {
 });
 
 ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
-  if (!allowedSubmitters.includes(event.params.submitter)) {
-    // Skipping DataSubmitted event - only processing events from specific submitters
-    return;
-  }
+  // Process DataSubmitted events from all submitters
 
   const entity: ERC1967Proxy_DataSubmitted = {
     id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
