@@ -16,10 +16,7 @@ import { getAllowedSubmitters, processCountyData } from "./utils/eventHelpers";
 const allowedSubmitters = getAllowedSubmitters();
 
 ERC1967Proxy.DataGroupHeartBeat.handler(async ({ event, context }) => {
-  if (!allowedSubmitters.includes(event.params.submitter)) {
-    // Skipping HeartBeat event - only processing events from specific submitters
-    return;
-  }
+  // Process HeartBeat events from all submitters
 
   const entity: ERC1967Proxy_DataGroupHeartBeat = {
     id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
