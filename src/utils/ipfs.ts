@@ -201,6 +201,12 @@ async function fetchDataWithInfiniteRetry<T>(
                 }
             } catch (e) {
                 const error = e as Error;
+
+                // If this is our thrown error for non-retriable status codes, re-throw it immediately
+                if (error.message.includes('fetch failed with non-retriable status')) {
+                    throw error;
+                }
+
                 const cause = (error as any)?.cause;
 
                 // Extract detailed error information
@@ -238,6 +244,7 @@ async function fetchDataWithInfiniteRetry<T>(
                         ...errorDetails,
                         errorStringified: JSON.stringify(error, Object.getOwnPropertyNames(error))
                     });
+                    throw new Error(`${dataType} fetch failed with non-retriable status`);
                 }
             }
 
