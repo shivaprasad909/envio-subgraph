@@ -115,6 +115,10 @@ function shouldRetryIndefinitely(response?: Response, error?: Error): boolean {
 
     // Retry indefinitely on specific HTTP status codes
     if (response) {
+        // Don't retry on 404 - content doesn't exist
+        if (response.status === 404) {
+            return false;
+        }
         return response.status === 429 || response.status === 502 || response.status === 504;
     }
 
@@ -184,13 +188,15 @@ async function fetchDataWithInfiniteRetry<T>(
                             attempt: totalAttempts
                         });
                     } else {
-                        context.log.warn(`${dataType} fetch failed with non-retriable error`, {
+                        // Non-retriable error - stop trying
+                        context.log.error(`${dataType} fetch failed with non-retriable error, stopping`, {
                             cid,
                             endpoint: endpoint.url,
                             status: response.status,
                             statusText: response.statusText,
                             attempt: totalAttempts
                         });
+                        throw new Error(`${dataType} fetch failed with non-retriable status ${response.status}: ${response.statusText}`);
                     }
                 }
             } catch (e) {

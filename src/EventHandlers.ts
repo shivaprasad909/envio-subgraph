@@ -6,6 +6,7 @@ import {
   ERC1967Proxy_DataGroupHeartBeat,
   ERC1967Proxy_DataSubmitted,
   DataSubmittedWithLabel,
+  CountyStats,
 } from "generated";
 
 import { bytes32ToCID, getIpfsMetadata } from "./utils/ipfs";
@@ -194,6 +195,53 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
     };
 
     context.DataSubmittedWithLabel.set(labelEntity);
+
+    // Update county statistics if this is a new entity and we have address data
+    if (!existingEntityDS && addressId) {
+      try {
+        // Get the address entity to extract county name
+        const addressEntity = await context.Address.get(addressId);
+        if (addressEntity && addressEntity.county_name) {
+          const countyName = addressEntity.county_name;
+          const countyStatsId = `county_${countyName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+
+          // Get existing county stats or create new one
+          let countyStats = await context.CountyStats.get(countyStatsId);
+
+          if (countyStats) {
+            // Increment count for existing county
+            const updatedCountyStats: CountyStats = {
+              ...countyStats,
+              unique_properties_count: countyStats.unique_properties_count + 1,
+              last_updated: labelEntity.datetime?.toString() || event.block.timestamp.toString(),
+            };
+            context.CountyStats.set(updatedCountyStats);
+          } else {
+            // Create new county stats
+            const newCountyStats: CountyStats = {
+              id: countyStatsId,
+              county_name: countyName,
+              unique_properties_count: 1,
+              last_updated: labelEntity.datetime?.toString() || event.block.timestamp.toString(),
+            };
+            context.CountyStats.set(newCountyStats);
+          }
+
+          context.log.info(`Updated county statistics`, {
+            countyName,
+            countyStatsId,
+            isNewCounty: !countyStats,
+            newCount: countyStats ? countyStats.unique_properties_count + 1 : 1
+          });
+        }
+      } catch (error) {
+        context.log.warn(`Failed to update county statistics`, {
+          addressId,
+          error: (error as Error).message
+        });
+      }
+    }
+
     context.log.info(`${existingEntityDS ? 'Updated' : 'Created'} DataSubmittedWithLabel entity`, {
       entityId: mainEntityId,
       propertyHash: event.params.propertyHash,

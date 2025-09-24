@@ -69,3 +69,10 @@ type DataSubmittedWithLabel {
   address: Address
   property: Property
 }
+
+type CountyStats {
+  id: ID!
+  county_name: String!
+  unique_properties_count: Int!
+  last_updated: String!
+}
