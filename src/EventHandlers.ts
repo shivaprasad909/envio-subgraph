@@ -6,13 +6,9 @@ import {
   ERC1967Proxy_DataGroupHeartBeat,
   ERC1967Proxy_DataSubmitted,
   DataSubmittedWithLabel,
-  Structure,
-  Address,
-  Property,
-  Ipfs,
 } from "generated";
 
-import { bytes32ToCID, getIpfsMetadata, getPropertyData } from "./utils/ipfs";
+import { bytes32ToCID, getIpfsMetadata } from "./utils/ipfs";
 import { getAllowedSubmitters, processCountyData } from "./utils/eventHelpers";
 
 // Get allowed submitters from environment variables - this will crash if none found
@@ -41,19 +37,36 @@ ERC1967Proxy.DataGroupHeartBeat.handler(async ({ event, context }) => {
 
   try {
     const metadata = await context.effect(getIpfsMetadata, cid);
+
+    // Skip if label is not County
+    if (metadata.label !== "County") {
+      context.log.info(`Skipping HeartBeat - label is not County`, {
+        propertyHash,
+        label: metadata.label,
+        cid
+      });
+      return;
+    }
+
     const propertyId = event.params.propertyHash;
     let parcelIdentifier: string | undefined;
 
-    if (metadata.label === "County") {
-      // Process County data to get parcel_identifier (same as DataSubmitted)
-      const result = await processCountyData(context, metadata, cid, propertyId);
-      if (result) {
-        parcelIdentifier = result.parcelIdentifier;
-      }
+    // Process County data to get parcel_identifier
+    const result = await processCountyData(context, metadata, cid, propertyId);
+    if (result) {
+      parcelIdentifier = result.parcelIdentifier;
     }
 
-    // Use same logic as DataSubmitted to find the entity
-    const mainEntityId = parcelIdentifier || propertyId;
+    // Only use parcel_identifier as property ID - skip if not found
+    if (!parcelIdentifier) {
+      context.log.info(`Skipping HeartBeat - no parcel_identifier found`, {
+        propertyHash,
+        cid
+      });
+      return;
+    }
+
+    const mainEntityId = parcelIdentifier;
 
     // Check if entity exists (try parcel_identifier first, then propertyHash)
     let existingEntity: DataSubmittedWithLabel | undefined;
@@ -115,112 +128,59 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
   try {
     const metadata = await context.effect(getIpfsMetadata, cid);
 
-    // Use propertyHash as the unique ID for the property
-    const propertyId = event.params.propertyHash;
-    let parcelIdentifier: string | undefined;
-
-    // Initialize entity IDs that will be populated from IPFS data
-    let structureId: string | undefined;
-    let addressId: string | undefined;
-    let propertyDataId: string | undefined;
-    let ipfsId: string | undefined;
-    let lotId: string | undefined;
-    let utilityId: string | undefined;
-    let floodStormId: string | undefined;
-
-    if (metadata.label === "County") {
-      // Process County data first to get parcel_identifier
-      const result = await processCountyData(context, metadata, cid, propertyId);
-      if (result) {
-        structureId = result.structureId;
-        addressId = result.addressId;
-        propertyDataId = result.propertyDataId;
-        ipfsId = result.ipfsId;
-        lotId = result.lotId;
-        utilityId = result.utilityId;
-        floodStormId = result.floodStormId;
-        parcelIdentifier = result.parcelIdentifier;
-
-        // Use parcel_identifier as the main entity ID, fallback to propertyHash
-        const mainEntityId = parcelIdentifier || propertyId;
-
-        // Re-process sales history with correct mainEntityId if parcelIdentifier exists
-        if (parcelIdentifier && parcelIdentifier !== propertyId) {
-          // Need to update sales history entities with correct property_id
-          for (const salesEntity of result.salesHistoryEntities) {
-            const updatedSalesEntity = {
-              ...salesEntity,
-              property_id: mainEntityId
-            };
-            context.SalesHistory.set(updatedSalesEntity);
-          }
-
-          // Need to update tax entities with correct property_id
-          for (const taxEntity of result.taxEntities) {
-            const updatedTaxEntity = {
-              ...taxEntity,
-              property_id: mainEntityId
-            };
-            context.Tax.set(updatedTaxEntity);
-          }
-
-          // Need to update person entities with correct property_id
-          for (const personEntity of result.personEntities) {
-            const updatedPersonEntity = {
-              ...personEntity,
-              property_id: mainEntityId
-            };
-            context.Person.set(updatedPersonEntity);
-          }
-
-          // Need to update company entities with correct property_id
-          for (const companyEntity of result.companyEntities) {
-            const updatedCompanyEntity = {
-              ...companyEntity,
-              property_id: mainEntityId
-            };
-            context.Company.set(updatedCompanyEntity);
-          }
-
-          // Need to update layout entities with correct property_id
-          for (const layoutEntity of result.layoutEntities) {
-            const updatedLayoutEntity = {
-              ...layoutEntity,
-              property_id: mainEntityId
-            };
-            context.Layout.set(updatedLayoutEntity);
-          }
-
-          // Need to update file entities with correct property_id
-          for (const fileEntity of result.fileEntities) {
-            const updatedFileEntity = {
-              ...fileEntity,
-              property_id: mainEntityId
-            };
-            context.File.set(updatedFileEntity);
-          }
-        }
-      }
-
-    } else if (metadata.label === "Seed") {
-      // Skip Seed processing - only process County labels
+    // Skip if not County label
+    if (metadata.label !== "County") {
+      context.log.info(`Skipping DataSubmitted - label is not County`, {
+        label: metadata.label,
+        cid
+      });
       return;
     }
 
-    // Use parcel_identifier as the main entity ID, fallback to propertyHash
-    const mainEntityId = parcelIdentifier || propertyId;
-    const idSource = parcelIdentifier ? "parcel_identifier" : "propertyHash";
+    const propertyId = event.params.propertyHash;
+    let parcelIdentifier: string | undefined;
+    let addressId: string | undefined;
+    let propertyDataId: string | undefined;
 
-    // Check if entity exists (try parcel_identifier first, then propertyHash)
+    // Process County data to get parcel_identifier
+    const result = await processCountyData(context, metadata, cid, propertyId);
+    if (result) {
+      parcelIdentifier = result.parcelIdentifier;
+      addressId = result.addressId;
+      propertyDataId = result.propertyDataId;
+    }
+
+    // Only use parcel_identifier as property ID - skip if not found
+    if (!parcelIdentifier) {
+      context.log.info(`Skipping DataSubmitted - no parcel_identifier found`, {
+        propertyHash: event.params.propertyHash,
+        cid
+      });
+      return;
+    }
+
+    const mainEntityId = parcelIdentifier;
+
+    // Log what entities were created (Property and Address entities are created inside processCountyData)
+    if (propertyDataId) {
+      context.log.info(`Property entity created`, {
+        propertyId: propertyDataId,
+        parcelIdentifier
+      });
+    }
+
+    if (addressId) {
+      context.log.info(`Address entity created`, {
+        addressId,
+        parcelIdentifier
+      });
+    }
+
+    // Check if DataSubmittedWithLabel entity exists
     let existingEntityDS: DataSubmittedWithLabel | undefined;
-    if (parcelIdentifier) {
-      existingEntityDS = await context.DataSubmittedWithLabel.get(parcelIdentifier);
-    }
-    if (!existingEntityDS) {
-      existingEntityDS = await context.DataSubmittedWithLabel.get(propertyId);
-    }
+    existingEntityDS = await context.DataSubmittedWithLabel.get(parcelIdentifier);
 
-    // Update or create the main property entity
+    // Create or update the main DataSubmittedWithLabel entity
     const labelEntity: DataSubmittedWithLabel = {
       id: mainEntityId,
       propertyHash: event.params.propertyHash, // Always update with latest propertyHash
@@ -228,24 +188,16 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
       dataHash: event.params.dataHash,
       cid: cid,
       label: metadata.label,
-      id_source: idSource,
-      structure_id: structureId,
       address_id: addressId,
       property_id: propertyDataId,
-      ipfs_id: ipfsId,
-      lot_id: lotId,
-      utility_id: utilityId,
-      flood_storm_information_id: floodStormId,
       datetime: BigInt(event.block.timestamp),
     };
 
     context.DataSubmittedWithLabel.set(labelEntity);
-    context.log.info(`${existingEntityDS ? 'Updated' : 'Created'} property entity`, {
+    context.log.info(`${existingEntityDS ? 'Updated' : 'Created'} DataSubmittedWithLabel entity`, {
       entityId: mainEntityId,
       propertyHash: event.params.propertyHash,
       label: metadata.label,
-      idSource,
-      structureId,
       addressId,
       propertyDataId,
       isUpdate: !!existingEntityDS,

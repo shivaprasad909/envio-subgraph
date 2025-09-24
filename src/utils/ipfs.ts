@@ -2,36 +2,12 @@ import { experimental_createEffect, S, type EffectContext } from "envio";
 import {
     ipfsMetadataSchema,
     relationshipSchema,
-    structureSchema,
     addressSchema,
     propertySchema,
-    ipfsFactSheetSchema,
-    lotDataSchema,
-    salesHistorySchema,
-    taxSchema,
-    utilitySchema,
-    floodStormInformationSchema,
-    personSchema,
-    companySchema,
-    layoutSchema,
-    fileSchema,
-    deedSchema,
     type IpfsMetadata,
     type RelationshipData,
-    type StructureData,
     type AddressData,
     type PropertyData,
-    type IpfsFactSheetData,
-    type LotData,
-    type SalesHistoryData,
-    type TaxData,
-    type UtilityData,
-    type FloodStormInformationData,
-    type PersonData,
-    type CompanyData,
-    type LayoutData,
-    type FileData,
-    type DeedData
 } from "./schemas";
 
 // Convert bytes32 to CID (same as subgraph implementation)
@@ -85,53 +61,21 @@ export function bytes32ToCID(dataHashHex: string): string {
     return "b" + output;
 }
 
-// Build gateway configuration with environment variables as priority
+// Build gateway configuration from environment variables only
 function buildEndpoints() {
-    const endpoints = [];
-
-    // Check for custom gateway from environment variables (highest priority)
+    // Require ENVIO_IPFS_GATEWAY environment variable
     const envGateway = process.env.ENVIO_IPFS_GATEWAY;
     const envToken = process.env.ENVIO_GATEWAY_TOKEN;
 
-    if (envGateway) {
-        endpoints.push({
-            url: envGateway,
-            token: envToken || null
-        });
+    if (!envGateway) {
+        throw new Error('ENVIO_IPFS_GATEWAY environment variable is required but not provided');
     }
 
-    // Add fallback gateways
-    const fallbackEndpoints = [
-        { url: "https://sapphire-academic-leech-250.mypinata.cloud/ipfs", token: "CcV1DorYnAo9eZr_P4DXg8TY4SB-QuUw_b6C70JFs2M8aY0fJudBnle2mUyCYyTu" },
-        { url: "https://indexing-node-envio.mypinata.cloud/ipfs", token: "iYp6WBHfIL-yzshn3WnFyCJRmIH3iBqwcD9Jou-pgTmtr20GXaDWXxqTg9zOP6dk" },
-        { url: "https://dry-fuchsia-ox.myfilebase.com/ipfs/", token: null },
-        { url: "https://indexing-node-envio-2.mypinata.cloud/ipfs", token: "OdQztc-h-6PjCKKJnUvYpjjw_m8n4KsRBMRWOGtyipd-KVRG7rTiC2D5bKKBDA2B" },
-        { url: "https://indexing-node-envio-3.mypinata.cloud/ipfs", token: "cSEbVBstzkkTTco4oO-iBbuhX_sahOth00XH2rpE7E30IuwnE6A7gdxSa_ZSfWs6" },
-        { url: "https://indexing-node-envio-4.mypinata.cloud/ipfs", token: "BZA3Pmr1XNG7HqS49-owAGq0UcHxEmSBBK58-VTN4XeY3cP0DeUFXdhuo6z8sFfk" },
-        { url: "https://indexing-node-envio-5.mypinata.cloud/ipfs", token: "oe6OopKUwS21PFia0i9o9fJIjPp5lFcosrcW6r1NTCh5BNEylK6blp0JQyFf5Qf3" },
-        { url: "https://indexing-node-envio-6.mypinata.cloud/ipfs", token: "WXB6rg3NUOUf4RJqZ92mphaJzui37iTm5KnYdINfEViuecA7Pi5NZnbmWv1JLO0o" },
-        { url: "https://indexing-node-envio-7.mypinata.cloud/ipfs", token: "mENdB9KWRja3LKxHuPM9ALFnpDeIq3hKO2kkmDNyAVL7lwSpEnIjoEe6CKQHoE_c" },
-        { url: "https://indexing-node-envio-8.mypinata.cloud/ipfs", token: "cI2sPS-C2G5O1jhDSGGIS0wrxKbLg7EvOSbgXuKbaR0JL7U1PMtp-bqg6i2enIaw" },
-        { url: "https://indexing-node-envio-9.mypinata.cloud/ipfs", token: "90TLB7uLlOGodY8BWEmJa47nWKoru1Bd54yZQcbPrp6GJOG3-SAayrGHi6wfiXry" },
-        { url: "https://indexing-node-envio-10.mypinata.cloud/ipfs", token: "XZ5G02AF45h_a8Fvv4S5HR9LthJ5y27S2xAMivgfW002aVr2bhK5XqflTc_QWk02" },        { url: "https://moral-aqua-catfish.myfilebase.com/ipfs", token: null },
-        { url: "https://bronze-blank-cod-736.mypinata.cloud/ipfs", token: "0EicEGVVMxNrYgog3s1-Aud_3v32eSvF9nYypTkQ4Qy-G4M8N-zdBvL1DNYjlupe" },
-        { url: "https://indexing2.myfilebase.com/ipfs", token: null },
-        { url: "https://ipfs.io/ipfs", token: null },
-        { url: "https://gateway.ipfs.io/ipfs", token: null },
-        { url: "https://dweb.link/ipfs", token: null },
-        { url: "https://w3s.link/ipfs", token: null },
-        { url: "https://gateway.pinata.cloud/ipfs", token: null },
-    ];
-
-    // Add fallback endpoints, avoiding duplicates
-    for (const fallback of fallbackEndpoints) {
-        const isDuplicate = endpoints.some(existing => existing.url === fallback.url);
-        if (!isDuplicate) {
-            endpoints.push(fallback);
-        }
-    }
-
-    return endpoints;
+    // Only use the environment variable gateway
+    return [{
+        url: envGateway,
+        token: envToken || null
+    }];
 }
 
 // Gateway configuration with optional authentication tokens
@@ -404,72 +348,6 @@ export const getRelationshipData = experimental_createEffect(
     }
 );
 
-// Fetch structure data (roof_date)
-export const getStructureData = experimental_createEffect(
-    {
-        name: "getStructureData",
-        input: S.string,
-        output: structureSchema,
-        cache: true,
-    },
-    async ({ input: cid, context }) => {
-        return fetchDataWithInfiniteRetry(
-            context,
-            cid,
-            "structure data",
-            (data: any) => data && typeof data === 'object',
-            (data: any) => ({
-                roof_date: data.roof_date || undefined,
-                architectural_style_type: data.architectural_style_type || undefined,
-                attachment_type: data.attachment_type || undefined,
-                ceiling_condition: data.ceiling_condition || undefined,
-                ceiling_height_average: data.ceiling_height_average || undefined,
-                ceiling_insulation_type: data.ceiling_insulation_type || undefined,
-                ceiling_structure_material: data.ceiling_structure_material || undefined,
-                ceiling_surface_material: data.ceiling_surface_material || undefined,
-                exterior_door_material: data.exterior_door_material || undefined,
-                exterior_wall_condition: data.exterior_wall_condition || undefined,
-                exterior_wall_insulation_type: data.exterior_wall_insulation_type || undefined,
-                exterior_wall_material_primary: data.exterior_wall_material_primary || undefined,
-                exterior_wall_material_secondary: data.exterior_wall_material_secondary || undefined,
-                flooring_condition: data.flooring_condition || undefined,
-                flooring_material_primary: data.flooring_material_primary || undefined,
-                flooring_material_secondary: data.flooring_material_secondary || undefined,
-                foundation_condition: data.foundation_condition || undefined,
-                foundation_material: data.foundation_material || undefined,
-                foundation_type: data.foundation_type || undefined,
-                foundation_waterproofing: data.foundation_waterproofing || undefined,
-                gutters_condition: data.gutters_condition || undefined,
-                gutters_material: data.gutters_material || undefined,
-                interior_door_material: data.interior_door_material || undefined,
-                interior_wall_condition: data.interior_wall_condition || undefined,
-                interior_wall_finish_primary: data.interior_wall_finish_primary || undefined,
-                interior_wall_finish_secondary: data.interior_wall_finish_secondary || undefined,
-                interior_wall_structure_material: data.interior_wall_structure_material || undefined,
-                interior_wall_surface_material_primary: data.interior_wall_surface_material_primary || undefined,
-                interior_wall_surface_material_secondary: data.interior_wall_surface_material_secondary || undefined,
-                number_of_stories: data.number_of_stories || undefined,
-                primary_framing_material: data.primary_framing_material || undefined,
-                request_identifier: data.request_identifier || undefined,
-                roof_age_years: data.roof_age_years || undefined,
-                roof_condition: data.roof_condition || undefined,
-                roof_covering_material: data.roof_covering_material || undefined,
-                roof_design_type: data.roof_design_type || undefined,
-                roof_material_type: data.roof_material_type || undefined,
-                roof_structure_material: data.roof_structure_material || undefined,
-                roof_underlayment_type: data.roof_underlayment_type || undefined,
-                secondary_framing_material: data.secondary_framing_material || undefined,
-                structural_damage_indicators: data.structural_damage_indicators || undefined,
-                subfloor_material: data.subfloor_material || undefined,
-                window_frame_material: data.window_frame_material || undefined,
-                window_glazing_type: data.window_glazing_type || undefined,
-                window_operation_type: data.window_operation_type || undefined,
-                window_screen_material: data.window_screen_material || undefined,
-            })
-        );
-    }
-);
-
 // Fetch address data
 export const getAddressData = experimental_createEffect(
     {
@@ -547,28 +425,6 @@ export const getPropertyData = experimental_createEffect(
 );
 
 
-// Fetch fact sheet data (ipfs_url and full_generation_command)
-export const getIpfsFactSheetData = experimental_createEffect(
-    {
-        name: "getIpfsFactSheetData",
-        input: S.string,
-        output: ipfsFactSheetSchema,
-        cache: true,
-    },
-    async ({ input: cid, context }) => {
-        return fetchDataWithInfiniteRetry(
-            context,
-            cid,
-            "fact sheet data",
-            (data: any) => data && typeof data === 'object',
-            (data: any) => ({
-                ipfs_url: data.ipfs_url || undefined,
-                full_generation_command: data.full_generation_command || undefined,
-            })
-        );
-    }
-);
-
 export const getIpfsMetadata = experimental_createEffect(
     {
         name: "getIpfsMetadata",
@@ -581,304 +437,3 @@ export const getIpfsMetadata = experimental_createEffect(
     }
 );
 
-
-export const getLotData = experimental_createEffect(
-    {
-        name: "getLotData",
-        input: S.string,
-        output: lotDataSchema,
-        cache: true,
-    },
-    async ({ input: cid, context }) => {
-        return fetchDataWithInfiniteRetry(
-            context,
-            cid,
-            "lot data",
-            (data: any) => data && typeof data === 'object',
-            (data: any) => ({
-                driveway_condition: data.driveway_condition || undefined,
-                driveway_material: data.driveway_material || undefined,
-                fence_height: data.fence_height || undefined,
-                fence_length: data.fence_length || undefined,
-                fencing_type: data.fencing_type || undefined,
-                landscaping_features: data.landscaping_features || undefined,
-                lot_area_sqft: data.lot_area_sqft || undefined,
-                lot_condition_issues: data.lot_condition_issues || undefined,
-                lot_length_feet: data.lot_length_feet || undefined,
-                lot_size_acre: data.lot_size_acre || undefined,
-                lot_type: data.lot_type || undefined,
-                lot_width_feet: data.lot_width_feet || undefined,
-                request_identifier: data.request_identifier || undefined,
-                view: data.view || undefined,
-            })
-        );
-    }
-);
-
-export const getSalesHistoryData = experimental_createEffect(
-    {
-        name: "getSalesHistoryData",
-        input: S.string,
-        output: salesHistorySchema,
-        cache: true,
-    },
-    async ({ input: cid, context }) => {
-        return fetchDataWithInfiniteRetry(
-            context,
-            cid,
-            "sales history data",
-            (data: any) => data && typeof data === 'object',
-            (data: any) => ({
-                ownership_transfer_date: data.ownership_transfer_date || undefined,
-                purchase_price_amount: data.purchase_price_amount || undefined,
-                request_identifier: data.request_identifier || undefined,
-                sale_type: data.sale_type || undefined,
-            })
-        );
-    }
-);
-
-export const getTaxData = experimental_createEffect(
-    {
-        name: "getTaxData",
-        input: S.string,
-        output: taxSchema,
-        cache: true,
-    },
-    async ({ input: cid, context }) => {
-        return fetchDataWithInfiniteRetry(
-            context,
-            cid,
-            "tax data",
-            (data: any) => data && typeof data === 'object',
-            (data: any) => ({
-                first_year_building_on_tax_roll: data.first_year_building_on_tax_roll || undefined,
-                first_year_on_tax_roll: data.first_year_on_tax_roll || undefined,
-                monthly_tax_amount: data.monthly_tax_amount || undefined,
-                period_end_date: data.period_end_date || undefined,
-                period_start_date: data.period_start_date || undefined,
-                property_assessed_value_amount: data.property_assessed_value_amount,
-                property_building_amount: data.property_building_amount || undefined,
-                property_land_amount: data.property_land_amount || undefined,
-                property_market_value_amount: data.property_market_value_amount,
-                property_taxable_value_amount: data.property_taxable_value_amount,
-                request_identifier: data.request_identifier || undefined,
-                tax_year: data.tax_year || undefined,
-                yearly_tax_amount: data.yearly_tax_amount || undefined,
-            })
-        );
-    }
-);
-
-export const getUtilityData = experimental_createEffect(
-    {
-        name: "getUtilityData",
-        input: S.string,
-        output: utilitySchema,
-        cache: true,
-    },
-    async ({ input: cid, context }) => {
-        return fetchDataWithInfiniteRetry(
-            context,
-            cid,
-            "utility data",
-            (data: any) => data && typeof data === 'object',
-            (data: any) => ({
-                cooling_system_type: data.cooling_system_type || undefined,
-                electrical_panel_capacity: data.electrical_panel_capacity || undefined,
-                electrical_wiring_type: data.electrical_wiring_type || undefined,
-                electrical_wiring_type_other_description: data.electrical_wiring_type_other_description || undefined,
-                heating_system_type: data.heating_system_type || undefined,
-                hvac_condensing_unit_present: data.hvac_condensing_unit_present || undefined,
-                hvac_unit_condition: data.hvac_unit_condition || undefined,
-                hvac_unit_issues: data.hvac_unit_issues || undefined,
-                plumbing_system_type: data.plumbing_system_type || undefined,
-                plumbing_system_type_other_description: data.plumbing_system_type_other_description || undefined,
-                public_utility_type: data.public_utility_type || undefined,
-                request_identifier: data.request_identifier || undefined,
-                sewer_type: data.sewer_type || undefined,
-                smart_home_features: data.smart_home_features || undefined,
-                smart_home_features_other_description: data.smart_home_features_other_description || undefined,
-                solar_inverter_visible: data.solar_inverter_visible || undefined,
-                solar_panel_present: data.solar_panel_present || undefined,
-                solar_panel_type: data.solar_panel_type || undefined,
-                solar_panel_type_other_description: data.solar_panel_type_other_description || undefined,
-                water_source_type: data.water_source_type || undefined,
-            })
-        );
-    }
-);
-
-export const getFloodStormData = experimental_createEffect(
-    {
-        name: "getFloodStormData",
-        input: S.string,
-        output: floodStormInformationSchema,
-        cache: true,
-    },
-    async ({ input: cid, context }) => {
-        return fetchDataWithInfiniteRetry(
-            context,
-            cid,
-            "flood storm data",
-            (data: any) => data && typeof data === 'object',
-            (data: any) => ({
-                community_id: data.community_id || undefined,
-                effective_date: data.effective_date || undefined,
-                evacuation_zone: data.evacuation_zone || undefined,
-                fema_search_url: data.fema_search_url || undefined,
-                flood_insurance_required: data.flood_insurance_required || undefined,
-                flood_zone: data.flood_zone || undefined,
-                map_version: data.map_version || undefined,
-                panel_number: data.panel_number || undefined,
-                request_identifier: data.request_identifier || undefined,
-            })
-        );
-    }
-);
-
-export const getPersonData = experimental_createEffect(
-    {
-        name: "getPersonData",
-        input: S.string,
-        output: personSchema,
-        cache: true,
-    },
-    async ({ input: cid, context }) => {
-        return fetchDataWithInfiniteRetry(
-            context,
-            cid,
-            "person data",
-            (data: any) => data && typeof data === 'object',
-            (data: any) => ({
-                birth_date: data.birth_date || undefined,
-                first_name: data.first_name,
-                last_name: data.last_name,
-                middle_name: data.middle_name || undefined,
-                prefix_name: data.prefix_name || undefined,
-                request_identifier: data.request_identifier || undefined,
-                suffix_name: data.suffix_name || undefined,
-                us_citizenship_status: data.us_citizenship_status || undefined,
-                veteran_status: data.veteran_status || undefined,
-            })
-        );
-    }
-);
-
-export const getCompanyData = experimental_createEffect(
-    {
-        name: "getCompanyData",
-        input: S.string,
-        output: companySchema,
-        cache: true,
-    },
-    async ({ input: cid, context }) => {
-        return fetchDataWithInfiniteRetry(
-            context,
-            cid,
-            "company data",
-            (data: any) => data && typeof data === 'object',
-            (data: any) => ({
-                name: data.name || undefined,
-                request_identifier: data.request_identifier || undefined,
-            })
-        );
-    }
-);
-
-export const getLayoutData = experimental_createEffect(
-    {
-        name: "getLayoutData",
-        input: S.string,
-        output: layoutSchema,
-        cache: true,
-    },
-    async ({ input: cid, context }) => {
-        return fetchDataWithInfiniteRetry(
-            context,
-            cid,
-            "layout data",
-            (data: any) => data && typeof data === 'object',
-            (data: any) => ({
-                cabinet_style: data.cabinet_style || undefined,
-                clutter_level: data.clutter_level || undefined,
-                condition_issues: data.condition_issues || undefined,
-                countertop_material: data.countertop_material || undefined,
-                decor_elements: data.decor_elements || undefined,
-                design_style: data.design_style || undefined,
-                fixture_finish_quality: data.fixture_finish_quality || undefined,
-                floor_level: data.floor_level || undefined,
-                flooring_material_type: data.flooring_material_type || undefined,
-                flooring_wear: data.flooring_wear || undefined,
-                furnished: data.furnished || undefined,
-                has_windows: data.has_windows || undefined,
-                is_exterior: data.is_exterior,
-                is_finished: data.is_finished,
-                lighting_features: data.lighting_features || undefined,
-                natural_light_quality: data.natural_light_quality || undefined,
-                paint_condition: data.paint_condition || undefined,
-                pool_condition: data.pool_condition || undefined,
-                pool_equipment: data.pool_equipment || undefined,
-                pool_surface_type: data.pool_surface_type || undefined,
-                pool_type: data.pool_type || undefined,
-                pool_water_quality: data.pool_water_quality || undefined,
-                request_identifier: data.request_identifier || undefined,
-                safety_features: data.safety_features || undefined,
-                size_square_feet: data.size_square_feet || undefined,
-                spa_type: data.spa_type || undefined,
-                space_index: data.space_index,
-                space_type: data.space_type || undefined,
-                view_type: data.view_type || undefined,
-                visible_damage: data.visible_damage || undefined,
-                window_design_type: data.window_design_type || undefined,
-                window_material_type: data.window_material_type || undefined,
-                window_treatment_type: data.window_treatment_type || undefined,
-            })
-        );
-    }
-);
-
-export const getFileData = experimental_createEffect(
-    {
-        name: "getFileData",
-        input: S.string,
-        output: fileSchema,
-        cache: true,
-    },
-    async ({ input: cid, context }) => {
-        return fetchDataWithInfiniteRetry(
-            context,
-            cid,
-            "file data",
-            (data: any) => data && typeof data === 'object',
-            (data: any) => ({
-                document_type: data.document_type || undefined,
-                file_format: data.file_format || undefined,
-                ipfs_url: data.ipfs_url || undefined,
-                name: data.name || undefined,
-                original_url: data.original_url || undefined,
-                request_identifier: data.request_identifier || undefined,
-            })
-        );
-    }
-);
-
-export const getDeedData = experimental_createEffect(
-    {
-        name: "getDeedData",
-        input: S.string,
-        output: deedSchema,
-        cache: true,
-    },
-    async ({ input: cid, context }) => {
-        return fetchDataWithInfiniteRetry(
-            context,
-            cid,
-            "deed data",
-            (data: any) => data && typeof data === 'object',
-            (data: any) => ({
-                deed_type: data.deed_type,
-            })
-        );
-    }
-);
