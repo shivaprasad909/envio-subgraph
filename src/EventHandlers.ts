@@ -7,6 +7,7 @@ import {
   ERC1967Proxy_DataSubmitted,
   DataSubmittedWithLabel,
   CountyStats,
+  CountySubmitterStats,
 } from "generated";
 
 import { bytes32ToCID, getIpfsMetadata } from "./utils/ipfs";
@@ -194,7 +195,7 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
         const addressEntity = await context.Address.get(addressId);
         if (addressEntity && addressEntity.county_name) {
           const countyName = addressEntity.county_name;
-          const countyStatsId = `county_${countyName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+          const countyStatsId = countyName;
 
           // Get existing county stats or create new one
           let countyStats = await context.CountyStats.get(countyStatsId);
@@ -223,6 +224,41 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
             countyStatsId,
             isNewCounty: !countyStats,
             newCount: countyStats ? countyStats.unique_properties_count + 1 : 1
+          });
+
+          // Update county-submitter statistics
+          const submitter = event.params.submitter;
+          const countySubmitterStatsId = `${countyName}_${submitter}`;
+
+          // Get existing county-submitter stats or create new one
+          let countySubmitterStats = await context.CountySubmitterStats.get(countySubmitterStatsId);
+
+          if (countySubmitterStats) {
+            // Increment count for existing county-submitter
+            const updatedCountySubmitterStats: CountySubmitterStats = {
+              ...countySubmitterStats,
+              unique_properties_count: countySubmitterStats.unique_properties_count + 1,
+              last_updated: labelEntity.datetime?.toString() || event.block.timestamp.toString(),
+            };
+            context.CountySubmitterStats.set(updatedCountySubmitterStats);
+          } else {
+            // Create new county-submitter stats
+            const newCountySubmitterStats: CountySubmitterStats = {
+              id: countySubmitterStatsId,
+              county_name: countyName,
+              submitter: submitter,
+              unique_properties_count: 1,
+              last_updated: labelEntity.datetime?.toString() || event.block.timestamp.toString(),
+            };
+            context.CountySubmitterStats.set(newCountySubmitterStats);
+          }
+
+          context.log.info(`Updated county-submitter statistics`, {
+            countyName,
+            submitter,
+            countySubmitterStatsId,
+            isNewCountySubmitter: !countySubmitterStats,
+            newCount: countySubmitterStats ? countySubmitterStats.unique_properties_count + 1 : 1
           });
         }
       } catch (error) {

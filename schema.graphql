@@ -76,3 +76,11 @@ type CountyStats {
   unique_properties_count: Int!
   last_updated: String!
 }
+
+type CountySubmitterStats {
+  id: ID!
+  county_name: String!
+  submitter: String!
+  unique_properties_count: Int!
+  last_updated: String!
+}

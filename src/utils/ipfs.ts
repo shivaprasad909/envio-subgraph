@@ -61,21 +61,40 @@ export function bytes32ToCID(dataHashHex: string): string {
     return "b" + output;
 }
 
-// Build gateway configuration from environment variables only
+// Build gateway configuration with environment variables as priority
 function buildEndpoints() {
-    // Require ENVIO_IPFS_GATEWAY environment variable
+    const endpoints = [];
+
+    // Check for custom gateway from environment variables (highest priority)
     const envGateway = process.env.ENVIO_IPFS_GATEWAY;
     const envToken = process.env.ENVIO_GATEWAY_TOKEN;
 
-    if (!envGateway) {
+    if (envGateway) {
+        endpoints.push({
+            url: envGateway,
+            token: envToken || null
+        });
+    }
+
+    // Add fallback gateway
+    const fallbackEndpoints = [
+        { url: "https://moral-aqua-catfish.myfilebase.com/ipfs", token: null },
+    ];
+
+    // Add fallback endpoints, avoiding duplicates
+    for (const fallback of fallbackEndpoints) {
+        const isDuplicate = endpoints.some(existing => existing.url === fallback.url);
+        if (!isDuplicate) {
+            endpoints.push(fallback);
+        }
+    }
+
+    // If no endpoints configured, require environment variable
+    if (endpoints.length === 0) {
         throw new Error('ENVIO_IPFS_GATEWAY environment variable is required but not provided');
     }
 
-    // Only use the environment variable gateway
-    return [{
-        url: envGateway,
-        token: envToken || null
-    }];
+    return endpoints;
 }
 
 // Gateway configuration with optional authentication tokens
@@ -119,7 +138,7 @@ function shouldRetryIndefinitely(response?: Response, error?: Error): boolean {
         if (response.status === 404) {
             return false;
         }
-        return response.status === 429 || response.status === 502 || response.status === 504;
+        return response.status === 429 || response.status === 500 || response.status === 502 || response.status === 504;
     }
 
     return false;
@@ -128,7 +147,7 @@ function shouldRetryIndefinitely(response?: Response, error?: Error): boolean {
 // Helper function for other non-retriable errors (give up after few attempts)
 function shouldRetryLimited(response?: Response, error?: Error): boolean {
     if (response) {
-        return response.status >= 500 && response.status !== 502 && response.status !== 504;
+        return response.status >= 500 && response.status !== 500 && response.status !== 502 && response.status !== 504;
     }
     return false;
 }
