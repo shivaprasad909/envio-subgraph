@@ -4,48 +4,9 @@ import { S } from "envio";
 export const ipfsMetadataSchema = S.schema({
   label: S.string,
   relationships: S.optional(S.schema({
-    property_has_structure: S.optional(S.schema({
-      "/": S.string
-    })),
     property_has_address: S.optional(S.schema({
       "/": S.string
-    })),
-    property_has_lot: S.optional(S.schema({
-      "/": S.string
-    })),
-    property_has_sales_history: S.optional(S.array(S.schema({
-      "/": S.string
-    }))),
-    property_has_tax: S.optional(S.array(S.schema({
-      "/": S.string
-    }))),
-    property_has_utility: S.optional(S.schema({
-      "/": S.string
-    })),
-    property_has_flood_storm_information: S.optional(S.schema({
-      "/": S.string
-    })),
-    person_has_property: S.optional(S.array(S.schema({
-      "/": S.string
-    }))),
-    company_has_property: S.optional(S.array(S.schema({
-      "/": S.string
-    }))),
-    property_has_layout: S.optional(S.array(S.schema({
-      "/": S.string
-    }))),
-    property_has_file: S.optional(S.array(S.schema({
-      "/": S.string
-    }))),
-    deed_has_file: S.optional(S.array(S.schema({
-      "/": S.string
-    }))),
-    property_seed: S.optional(S.schema({
-      "/": S.string
-    })),
-    address_has_fact_sheet: S.optional(S.array(S.schema({
-      "/": S.string
-    })))
+    }))
   }))
 });
 
