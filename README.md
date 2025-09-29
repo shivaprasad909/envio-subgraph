@@ -250,3 +250,4 @@ pnpm deploy
 - [Envio Documentation](https://docs.envio.dev) - Complete guide on all Envio indexer features
 - [Envio Discord](https://discord.gg/envio)
 - [GitHub Issues](./issues) for project-specific problems
+
