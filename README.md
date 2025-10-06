@@ -4,6 +4,7 @@ A blockchain indexer built with Envio that processes property data events from s
 
 ## Features
 
+
 - **Real-time Event Processing**: Monitors `DataSubmitted` and `DataGroupHeartBeat` events
 - **IPFS Data Fetching**: Retrieves property, structure, and address data from multiple IPFS gateways
 - **Multi-Gateway Failover**: Automatic retry across multiple IPFS gateways for reliability
